@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consent Translator — Know What You're Signing</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:       #0f172a;
+      --muted:     #64748b;
+      --surface:   #f8fafc;
+      --card:      #ffffff;
+      --border:    #e2e8f0;
+      --accent:    #6366f1;
+      --accent2:   #0ea5e9;
+      --danger:    #ef4444;
+      --warn:      #f59e0b;
+      --safe:      #22c55e;
+      --radius:    12px;
+      --shadow:    0 4px 24px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--surface);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Layout ───────────────────────────────────────── */
+    .page-shell {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: 2.5rem;
+    }
+    .brand-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center;
+      font-size: 1.4rem;
+    }
+    .brand-name { font-size: 1.35rem; font-weight: 700; }
+    .brand-tag  { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Hero text ────────────────────────────────────── */
+    .hero-title {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: .6rem;
+    }
+    .hero-sub {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Input card ───────────────────────────────────── */
+    .input-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+    .tab-row {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1.25rem;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: .5rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: all .15s;
+      color: var(--muted);
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .field-wrap { display: flex; flex-direction: column; gap: .75rem; }
+    .field-wrap input,
+    .field-wrap textarea {
+      width: 100%;
+      padding: .75rem 1rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: .95rem;
+      font-family: inherit;
+      transition: border-color .15s;
+      resize: vertical;
+    }
+    .field-wrap input:focus,
+    .field-wrap textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .field-wrap textarea { min-height: 140px; }
+
+    .lang-toggle {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .875rem;
+      color: var(--muted);
+    }
+    .lang-toggle input { width: auto; }
+
+    .scan-btn {
+      width: 100%;
+      padding: .85rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s;
+      margin-top: .25rem;
+    }
+    .scan-btn:hover   { opacity: .9; }
+    .scan-btn:disabled{ opacity: .55; cursor: default; }
+
+    /* ── Loading ──────────────────────────────────────── */
+    .loader {
+      text-align: center;
+      padding: 3rem;
+      color: var(--muted);
+      display: none;
+    }
+    .spinner {
+      display: inline-block;
+      width: 36px; height: 36px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+      margin-bottom: 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error banner ─────────────────────────────────── */
+    .err-box {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: var(--danger);
+      border-radius: 8px;
+      padding: .9rem 1rem;
+      font-size: .9rem;
+      display: none;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Results ──────────────────────────────────────── */
+    #results-zone { display: none; }
+
+    /* Score ring card */
+    .verdict-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.75rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ring-wrap {
+      position: relative;
+      width: 110px; height: 110px;
+      flex-shrink: 0;
+    }
+    .ring-wrap svg { transform: rotate(-90deg); }
+    .ring-score {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+    .ring-label { font-size: .65rem; color: var(--muted); font-weight: 400; }
+
+    .verdict-text { flex: 1; min-width: 200px; }
+    .verdict-text h2 { font-size: 1.2rem; margin-bottom: .35rem; }
+    .risk-badge {
+      display: inline-block;
+      padding: .25rem .75rem;
+      border-radius: 99px;
+      font-size: .8rem;
+      font-weight: 700;
+      margin-bottom: .6rem;
+    }
+    .risk-Low      { background: #dcfce7; color: #166534; }
+    .risk-Medium   { background: #fef9c3; color: #854d0e; }
+    .risk-High     { background: #ffedd5; color: #9a3412; }
+    .risk-Critical { background: #fee2e2; color: #991b1b; }
+    .one-liner { color: var(--muted); font-size: .9rem; }
+
+    /* Section cards */
+    .info-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .info-card h3 {
+      font-size: .85rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: .9rem;
+    }
+    .chip-list { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .chip {
+      background: #f1f5f9;
+      border-radius: 99px;
+      padding: .3rem .85rem;
+      font-size: .82rem;
+      color: var(--ink);
+    }
+    .meta-pair { margin-bottom: .65rem; font-size: .9rem; }
+    .meta-pair span { color: var(--muted); font-size: .8rem; display: block; margin-bottom: .1rem; }
+
+    /* Alarm clauses */
+    .alarm-item {
+      border-left: 3px solid var(--danger);
+      padding: .65rem .9rem;
+      margin-bottom: .75rem;
+      background: #fff5f5;
+      border-radius: 0 6px 6px 0;
+    }
+    .alarm-clause { font-size: .9rem; font-style: italic; color: var(--ink); margin-bottom: .3rem; }
+    .alarm-reason { font-size: .82rem; color: var(--muted); }
+
+    /* Hindi */
+    .hindi-block {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: .9rem 1rem;
+      font-size: .95rem;
+      line-height: 1.65;
+      color: var(--ink);
+    }
+
+    /* Share card */
+    .share-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .share-card h3 { font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .9rem; }
+    .share-inner {
+      background: linear-gradient(135deg, #1e293b, #334155);
+      border-radius: 10px;
+      padding: 1.25rem;
+      color: #fff;
+      font-size: .9rem;
+      line-height: 1.6;
+    }
+    .share-inner strong { color: #38bdf8; }
+    .copy-btn {
+      margin-top: .85rem;
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      border-radius: 6px;
+      padding: .5rem 1.1rem;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .copy-btn:hover { background: #7dd3fc; }
+
+    /* Reset */
+    .reset-btn {
+      display: block;
+      margin: 1rem auto 0;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: .6rem 1.5rem;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .9rem;
+    }
+    .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    @media (max-width: 520px) {
+      .verdict-card { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-shell">
+
+  <!-- Brand -->
+  <div class="brand-bar">
+    <div class="brand-icon">🔍</div>
+    <div>
+      <div class="brand-name">Consent Translator</div>
+      <div class="brand-tag">Know what you actually agreed to</div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <h1 class="hero-title">Privacy policies, decoded<br>in plain language.</h1>
+  <p class="hero-sub">
+    Paste a URL or the policy text — we'll tell you exactly what you're signing away,
+    which clauses should alarm you, and whether to worry. Works for Indian apps too.
+  </p>
+
+  <!-- Input card -->
+  <div class="input-card">
+    <div class="tab-row">
+      <button class="tab-btn active" data-mode="url"  onclick="switchMode('url')">🔗 Paste URL</button>
+      <button class="tab-btn"       data-mode="text" onclick="switchMode('text')">📋 Paste Text</button>
+    </div>
+
+    <div class="field-wrap">
+      <input id="urlField" type="url"
+        placeholder="https://example.com/privacy-policy" />
+      <textarea id="txtField" style="display:none"
+        placeholder="Paste the full privacy policy text here…"></textarea>
+
+      <label class="lang-toggle">
+        <input type="checkbox" id="hindiToggle" />
+        Show Hindi summary (हिंदी सारांश)
+      </label>
+
+      <button class="scan-btn" id="runBtn" onclick="triggerAnalysis()">
+        🔍 Analyse Policy
+      </button>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="err-box" id="errBox"></div>
+
+  <!-- Loader -->
+  <div class="loader" id="loaderBox">
+    <div class="spinner"></div>
+    <p>Reading and analysing the policy…</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results-zone">
+
+    <!-- Verdict / Score -->
+    <div class="verdict-card" id="verdictCard">
+      <div class="ring-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="46" fill="none" stroke="#e2e8f0" stroke-width="10"/>
+          <circle cx="55" cy="55" r="46" fill="none" id="ringArc"
+            stroke="#6366f1" stroke-width="10"
+            stroke-dasharray="289" stroke-dashoffset="289"
+            stroke-linecap="round"/>
+        </svg>
+        <div class="ring-score">
+          <span id="scoreNum">—</span>
+          <span class="ring-label">safety</span>
+        </div>
+      </div>
+      <div class="verdict-text">
+        <span class="risk-badge" id="riskBadge">—</span>
+        <h2 id="appGuessTitle">Analysing…</h2>
+        <p class="one-liner" id="oneLineSum"></p>
+      </div>
+    </div>
+
+    <!-- Data collected -->
+    <div class="info-card">
+      <h3>📦 Data collected</h3>
+      <div class="chip-list" id="dataList"></div>
+    </div>
+
+    <!-- How it's used -->
+    <div class="info-card">
+      <h3>🎯 How your data is used</h3>
+      <div class="chip-list" id="purposeList"></div>
+    </div>
+
+    <!-- Retention + Third party -->
+    <div class="info-card">
+      <h3>📅 Retention & sharing</h3>
+      <div class="meta-pair">
+        <span>How long they keep your data</span>
+        <div id="retentionVal"></div>
+      </div>
+      <div class="meta-pair">
+        <span>Third-party sharing</span>
+        <div id="thirdPartyVal"></div>
+      </div>
+    </div>
+
+    <!-- Top alarming clauses -->
+    <div class="info-card">
+      <h3>🚨 Top 3 alarming clauses</h3>
+      <div id="alarmList"></div>
+    </div>
+
+    <!-- Should you worry -->
+    <div class="info-card">
+      <h3>⚖️ Verdict</h3>
+      <p id="worryText" style="font-size:.95rem;"></p>
+    </div>
+
+    <!-- Hindi summary (conditional) -->
+    <div class="info-card" id="hindiSection" style="display:none">
+      <h3>🇮🇳 हिंदी सारांश</h3>
+      <div class="hindi-block" id="hindiContent"></div>
+    </div>
+
+    <!-- Shareable card -->
+    <div class="share-card">
+      <h3>📤 Share this warning</h3>
+      <div class="share-inner" id="shareInner"></div>
+      <button class="copy-btn" onclick="copyShareText()">Copy & Share</button>
+    </div>
+
+    <button class="reset-btn" onclick="resetTool()">← Analyse another policy</button>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   Consent Translator — Frontend Logic
+   ══════════════════════════════════════════════════════ */
+
+const API_ROOT = 'http://localhost:4000'; // change in production
+
+let currentMode   = 'url';
+let latestPayload = null;
+
+/* ─── Mode switching ─────────────────────────────────── */
+function switchMode(chosen) {
+  currentMode = chosen;
+  document.getElementById('urlField').style.display = chosen === 'url'  ? 'block' : 'none';
+  document.getElementById('txtField').style.display = chosen === 'text' ? 'block' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === chosen);
+  });
+}
+
+/* ─── Main trigger ───────────────────────────────────── */
+async function triggerAnalysis() {
+  const urlVal  = document.getElementById('urlField').value.trim();
+  const txtVal  = document.getElementById('txtField').value.trim();
+
+  if (currentMode === 'url'  && !urlVal) return flashErr('Please enter a URL first.');
+  if (currentMode === 'text' && !txtVal) return flashErr('Please paste the policy text first.');
+
+  setLoading(true);
+  clearErr();
+
+  const body = currentMode === 'url'
+    ? { url: urlVal }
+    : { rawText: txtVal };
+
+  try {
+    const resp = await fetch(`${API_ROOT}/analyse`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(body),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || 'Server error');
+    }
+
+    latestPayload = data.analysis;
+    renderResults(data.analysis);
+  } catch (ex) {
+    flashErr(ex.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+/* ─── Render ─────────────────────────────────────────── */
+function renderResults(r) {
+  // Score ring
+  const safeScore   = Math.min(100, Math.max(0, Number(r.score) || 50));
+  const circumf     = 289; // 2π × 46
+  const dashOffset  = circumf - (safeScore / 100) * circumf;
+  const ringArc     = document.getElementById('ringArc');
+  ringArc.setAttribute('stroke-dashoffset', dashOffset);
+
+  // ring colour by risk
+  const ringColours = { Low: '#22c55e', Medium: '#f59e0b', High: '#f97316', Critical: '#ef4444' };
+  ringArc.setAttribute('stroke', ringColours[r.overallRisk] || '#6366f1');
+
+  document.getElementById('scoreNum').textContent = safeScore;
+
+  // Risk badge
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = r.overallRisk + ' Risk';
+  badge.className   = `risk-badge risk-${r.overallRisk}`;
+
+  document.getElementById('appGuessTitle').textContent = r.appGuess || 'Unknown App';
+  document.getElementById('oneLineSum').textContent    = r.oneLineSummary || '';
+
+  // Data collected chips
+  renderChips('dataList',    r.dataCollected  || []);
+  renderChips('purposeList', r.purposeOfUse   || []);
+
+  document.getElementById('retentionVal').textContent  = r.retentionPeriod  || 'Not stated';
+  document.getElementById('thirdPartyVal').textContent = r.thirdPartySharing || 'Not stated';
+
+  // Alarm clauses
+  const alarmContainer = document.getElementById('alarmList');
+  alarmContainer.innerHTML = '';
+  (r.topAlarmingClauses || []).forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'alarm-item';
+    el.innerHTML = `
+      <div class="alarm-clause">❝ ${escHtml(item.clause)} ❞</div>
+      <div class="alarm-reason">${escHtml(item.whyItMatters)}</div>`;
+    alarmContainer.appendChild(el);
+  });
+
+  document.getElementById('worryText').textContent = r.shouldYouWorry || '';
+
+  // Hindi section
+  const hindiOn = document.getElementById('hindiToggle').checked;
+  document.getElementById('hindiSection').style.display = hindiOn ? 'block' : 'none';
+  document.getElementById('hindiContent').textContent   = r.hindiSummary || '';
+
+  // Shareable card
+  buildShareCard(r);
+
+  // Show results
+  document.getElementById('results-zone').style.display = 'block';
+  document.getElementById('results-zone').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderChips(containerId, items) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = items.map(i =>
+    `<span class="chip">${escHtml(i)}</span>`
+  ).join('');
+}
+
+function buildShareCard(r) {
+  const emoji = { Low: '🟢', Medium: '🟡', High: '🟠', Critical: '🔴' }[r.overallRisk] || '⚪';
+  const txt = `${emoji} <strong>${escHtml(r.appGuess || 'This app')}</strong> — Privacy Risk: ${r.overallRisk}\n\n`
+    + `Safety Score: ${r.score}/100\n\n`
+    + `⚠️ Top concern: ${escHtml((r.topAlarmingClauses?.[0]?.clause) || 'See full report')}\n\n`
+    + `Verdict: ${escHtml(r.shouldYouWorry || '')}\n\n`
+    + `Checked with Consent Translator 🔍`;
+
+  document.getElementById('shareInner').innerHTML = txt.replace(/\n/g, '<br>');
+}
+
+function copyShareText() {
+  if (!latestPayload) return;
+  const r     = latestPayload;
+  const emoji = { Low: '🟢', Medium: '🟡', High: '🟠', Critical: '🔴' }[r.overallRisk] || '⚪';
+  const plain = `${emoji} ${r.appGuess || 'This app'} — Privacy Risk: ${r.overallRisk}\n`
+    + `Safety Score: ${r.score}/100\n`
+    + `⚠️ Top concern: ${r.topAlarmingClauses?.[0]?.clause || ''}\n`
+    + `Verdict: ${r.shouldYouWorry || ''}\n`
+    + `Checked with Consent Translator 🔍`;
+  navigator.clipboard.writeText(plain).then(() => alert('Copied! Share it with friends.'));
+}
+
+/* ─── Utility ────────────────────────────────────────── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setLoading(on) {
+  document.getElementById('loaderBox').style.display  = on ? 'block' : 'none';
+  document.getElementById('runBtn').disabled          = on;
+  if (on) document.getElementById('results-zone').style.display = 'none';
+}
+
+function flashErr(msg) {
+  const b = document.getElementById('errBox');
+  b.textContent    = '⚠️ ' + msg;
+  b.style.display  = 'block';
+}
+function clearErr() {
+  document.getElementById('errBox').style.display = 'none';
+}
+
+function resetTool() {
+  document.getElementById('urlField').value = '';
+  document.getElementById('txtField').value = '';
+  document.getElementById('results-zone').style.display = 'none';
+  latestPayload = null;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') triggerAnalysis();
+});
+</script>
+</body>
+</html>
