@@ -234,7 +234,7 @@ At scale (10,000 users/day): ~₹3,500/month
 | Name | Role |
 |---|---|
 | **Rishi Srivastava** | Team Leader — Full stack development, AI integration, backend architecture, deployment |
-| **Tushar Raghav** | Team Member |
+| **Tushar Raghav** | Team Member - Deployment,Git
 
 **Theme:** AI + Cybersecurity & Privacy
 
